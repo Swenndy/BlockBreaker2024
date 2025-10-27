@@ -1,0 +1,80 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven { url 'https://s01.oss.sonatype.org' }
+        gradlePluginPortal()
+        mavenLocal()
+        google()
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+        maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+    }
+    dependencies {
+        // Puedes agregar dependencias del plugin aquí si las necesitas
+    }
+}
+
+allprojects {
+    apply plugin: 'eclipse'
+    apply plugin: 'idea'
+
+    // Configuración de IntelliJ IDEA
+    idea {
+        module {
+            outputDir file('build/classes/java/main')
+            testOutputDir file('build/classes/java/test')
+        }
+    }
+}
+
+// Configuración de todos los subproyectos (core, lwjgl3, etc.)
+configure(subprojects) {
+    apply plugin: 'java-library'
+
+    // Compilar a Java 11 aunque Gradle use JDK 17
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(11)
+        }
+    }
+
+    // Opciones de compilación
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 11
+        options.encoding = 'UTF-8'
+        options.incremental = true
+    }
+
+    // Generar lista de assets automáticamente
+    tasks.register('generateAssetList') {
+        inputs.dir("${project.rootDir}/assets/")
+        def assetsFolder = file("${project.rootDir}/assets/")
+        def assetsFile = file("$assetsFolder/assets.txt")
+        assetsFile.delete()
+        fileTree(assetsFolder).collect { assetsFolder.relativePath(it) }.each {
+            assetsFile.append(it + "\n")
+        }
+    }
+
+    // Asegura que assets.txt se genere antes de procesar recursos
+    tasks.named('processResources').configure {
+        dependsOn 'generateAssetList'
+    }
+}
+
+// Configuración de repositorios y nombre del proyecto
+subprojects {
+    version = '$projectVersion'
+    ext.appName = 'BlockBreaker2024'
+
+    repositories {
+        mavenCentral()
+        maven { url 'https://s01.oss.sonatype.org' }
+        mavenLocal()
+        maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+        maven { url 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+        maven { url 'https://jitpack.io' }
+    }
+}
+
+// Nombre visible en Eclipse
+eclipse.project.name = 'BlockBreaker2024-parent'
