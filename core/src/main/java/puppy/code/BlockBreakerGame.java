@@ -37,6 +37,9 @@ public class BlockBreakerGame extends ApplicationAdapter {
         private Viewport uiViewport; 
         private BrickTextures brickTextures;
         private int texW = 64, texH = 20, radius = 5;
+        private float nivelAlpha = 0f; // transparencia
+        private long nivelStartTime = 0; // momento en que cambió el nivel
+        private final float NIVEL_MOSTRAR_DURACION = 2.5f; // segundos
     
 		@Override
 		public void create () {	
@@ -70,16 +73,27 @@ public class BlockBreakerGame extends ApplicationAdapter {
                 spawnBall(true);   
 		}
 		public void crearBloques(int filas) {
-			blocks.clear();
-			int blockWidth = 70;
-		    int blockHeight = 26;
-		    int y = Gdx.graphics.getHeight();
-		    for (int cont = 0; cont<filas; cont++ ) {
-		    	y -= blockHeight+10;
-		    	for (int x = 5; x < Gdx.graphics.getWidth(); x += blockWidth + 10) {
-		            blocks.add(new Block(x, y, blockWidth, blockHeight));
-		        }
-		    }
+                    blocks.clear();
+                    int blockWidth = 70;
+                    int blockHeight = 26;
+                    int y = Gdx.graphics.getHeight();
+
+                    for (int fila = 0; fila < filas; fila++) {
+                        y -= blockHeight + 10;
+
+                        for (int x = 5; x < Gdx.graphics.getWidth(); x += blockWidth + 10) {
+                            Block bloque;
+
+                            // 🔹 Cada 3ª fila o cada 5° bloque será más duro (2 golpes)
+                            if ((fila + 1) % 3 == 0 || (x / (blockWidth + 10)) % 5 == 0) {
+                                bloque = new BlockHard(x, y, blockWidth, blockHeight);
+                            } else {
+                                bloque = new Block(x, y, blockWidth, blockHeight);
+                            }
+
+                            blocks.add(bloque);
+                        }
+                    }   
 		}
                 private void spawnBall(boolean attachToPaddle) {
                     int bx = Math.round(pad.getX() + pad.getWidth() / 2f - 5f);
@@ -112,7 +126,27 @@ public class BlockBreakerGame extends ApplicationAdapter {
                     font.draw(batch, "Vidas : " + vidas, uiViewport.getWorldWidth() - 210, 40);
                     font.setColor(1, 1, 0.6f, 1);
                     font.draw(batch, "Mejor: " + mejorPuntaje, uiViewport.getWorldWidth()/2f - 70, 40);
+                    
+                    if (nivelAlpha > 0f) {
+                        long elapsed = System.currentTimeMillis() - nivelStartTime;
+                        if (elapsed > NIVEL_MOSTRAR_DURACION * 1000) {
+                            nivelAlpha -= Gdx.graphics.getDeltaTime() * 0.5f;
+                            if (nivelAlpha < 0f) nivelAlpha = 0f;
+                        }
+
+                        font.setColor(1f, 1f, 1f, nivelAlpha * 0.4f);
+                        String textoNivel = "Nivel " + nivel;
+
+                        // Posición centrada a ojo (puedo pasarte la centrada exacta si querís)
+                        float x = uiViewport.getWorldWidth() / 2f - 100;
+                        float y = uiViewport.getWorldHeight() / 2f + 20;
+
+                        font.draw(batch, textoNivel, x, y);
+                    }                    
+                    
                     batch.end();
+                    
+                    
 		}	
 		
 		@Override
@@ -128,10 +162,13 @@ public class BlockBreakerGame extends ApplicationAdapter {
                         b.setXY(Math.round(pad.getX() + pad.getWidth()/2f - 5), Math.round(pad.getY() + pad.getHeight() + 11f));
                         if (space) b.setEstaQuieto(false);
                     } else {
-                        b.update();
+                        float mult = 1f + nivel * 0.03f;   // más suave que 0.05
+                        if (mult > 1.4f) mult = 1.4f;      // tope
+                        b.update(mult);
                     }
                     if (b.getY() < 0) fallen.add(b);
                 }
+
 
                 // remover caídas
                 for (PingBall f : fallen) balls.remove(f);
@@ -156,6 +193,9 @@ public class BlockBreakerGame extends ApplicationAdapter {
                     crearBloques(2 + nivel);
                     balls.clear();
                     spawnBall(true);
+                    
+                    nivelAlpha = 1f;
+                    nivelStartTime = System.currentTimeMillis();
                 }
 
                 for (Block blk : blocks){
