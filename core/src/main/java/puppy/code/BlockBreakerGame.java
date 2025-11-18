@@ -28,18 +28,15 @@ public class BlockBreakerGame extends ApplicationAdapter {
 	private ArrayList<PingBall> balls = new ArrayList<>();
         private final int[] extraBallAt = {10, 25, 45};
         private int nextThresholdIdx = 0;
-        private int mejorPuntaje;
 	private Paddle pad;
 	private ArrayList<Block> blocks = new ArrayList<>();
-	private int vidas;
-	private int puntaje;
-	private int nivel;
         private Viewport uiViewport; 
         private BrickTextures brickTextures;
         private int texW = 64, texH = 20, radius = 5;
         private float nivelAlpha = 0f; // transparencia
         private long nivelStartTime = 0; // momento en que cambió el nivel
         private final float NIVEL_MOSTRAR_DURACION = 2.5f; // segundos
+        private GameState gs;
     
 		@Override
 		public void create () {	
@@ -47,6 +44,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
                 camera.setToOrtho(false, 1280, 720);
                 batch = new SpriteBatch();
                 brickTextures = new BrickTextures();
+                gs = GameState.get();
 
                 // fuentes
                 FreeTypeFontGenerator gen = new FreeTypeFontGenerator(Gdx.files.internal("fonts/fuenteLinda.ttf"));
@@ -56,9 +54,9 @@ public class BlockBreakerGame extends ApplicationAdapter {
                 p.magFilter = TextureFilter.Linear;
                 font = gen.generateFont(p);
                 gen.dispose();
-
-                nivel = 1;
-                crearBloques(2 + nivel);
+                gs.reset();
+                
+                crearBloques(2 + gs.getNivel());
                 uiViewport = new ScreenViewport();
                 shape = new ShapeRenderer();
                 pad = new Paddle(Gdx.graphics.getWidth()/2 - 50, 40, 100, 10); // <-- crea la paleta primero
@@ -66,8 +64,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
                 // Inicializa lista de pelotas ANTES de spawnear
                 balls = new ArrayList<>();
 
-                vidas = 3;
-                puntaje = 0;
+                 
 
                 // ahora sí puedes crear la primera pelota
                 spawnBall(true);   
@@ -102,13 +99,11 @@ public class BlockBreakerGame extends ApplicationAdapter {
                     balls.add(nb);
                 }
                 private void resetGame() {
-                mejorPuntaje = Math.max(mejorPuntaje, puntaje);
-                puntaje = 0;
-                nivel   = 1;
-                vidas   = 3;
+                gs.actualizarMejor();
+                gs.reset();
                 nextThresholdIdx = 0;
 
-                crearBloques(2 + nivel);
+                crearBloques(2 + gs.getNivel());
                 balls.clear();
                 spawnBall(true);}
                 
@@ -118,14 +113,14 @@ public class BlockBreakerGame extends ApplicationAdapter {
 
                     batch.begin();
                     font.setColor(0, 0, 0, 0.7f);  // sombra
-                    font.draw(batch, "Puntos: " + puntaje, 14, 38);
-                    font.draw(batch, "Vidas : " + vidas, uiViewport.getWorldWidth() - 206, 38);
+                    font.draw(batch, "Puntos: " + gs.getPuntaje(), 14, 38);
+                    font.draw(batch, "Vidas : " + gs.getVidas(), uiViewport.getWorldWidth() - 206, 38);
 
                     font.setColor(1, 1, 1, 1);     // texto principal
-                    font.draw(batch, "Puntos: " + puntaje, 10, 40);
-                    font.draw(batch, "Vidas : " + vidas, uiViewport.getWorldWidth() - 210, 40);
+                    font.draw(batch, "Puntos: " + gs.getPuntaje(), 10, 40);
+                    font.draw(batch, "Vidas : " + gs.getVidas(), uiViewport.getWorldWidth() - 210, 40);
                     font.setColor(1, 1, 0.6f, 1);
-                    font.draw(batch, "Mejor: " + mejorPuntaje, uiViewport.getWorldWidth()/2f - 70, 40);
+                    font.draw(batch, "Mejor: " + gs.getMejorPuntaje(), uiViewport.getWorldWidth()/2f - 70, 40);
                     
                     if (nivelAlpha > 0f) {
                         long elapsed = System.currentTimeMillis() - nivelStartTime;
@@ -135,7 +130,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
                         }
 
                         font.setColor(1f, 1f, 1f, nivelAlpha * 0.4f);
-                        String textoNivel = "Nivel " + nivel;
+                        String textoNivel = "Nivel " + gs.getNivel();
 
                         // Posición centrada a ojo (puedo pasarte la centrada exacta si querís)
                         float x = uiViewport.getWorldWidth() / 2f - 100;
@@ -162,7 +157,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
                         b.setXY(Math.round(pad.getX() + pad.getWidth()/2f - 5), Math.round(pad.getY() + pad.getHeight() + 11f));
                         if (space) b.setEstaQuieto(false);
                     } else {
-                        float mult = 1f + nivel * 0.03f;   // más suave que 0.05
+                        float mult = 1f + gs.getNivel() * 0.03f;   // más suave que 0.05
                         if (mult > 1.4f) mult = 1.4f;      // tope
                         b.update(mult);
                     }
@@ -175,8 +170,8 @@ public class BlockBreakerGame extends ApplicationAdapter {
 
                 // si todas cayeron: perder vida y reponer 1 pegada (o reset si no quedan vidas)
                 if (!fallen.isEmpty() && balls.isEmpty()) {
-                    vidas--;
-                    if (vidas > 0) {
+                    gs.perderVida();
+                    if (gs.getVidas() > 0) {
                         spawnBall(true);
                     } else {
                         resetGame();
@@ -184,13 +179,13 @@ public class BlockBreakerGame extends ApplicationAdapter {
                     }
                 }
 
-                if (vidas <= 0) {
+                if (gs.getVidas() <= 0) {
                     resetGame();
                 }
 
                 if (blocks.size() == 0) {
-                    nivel++;
-                    crearBloques(2 + nivel);
+                    gs.subirNivel();
+                    crearBloques(2 + gs.getNivel());
                     balls.clear();
                     spawnBall(true);
                     
@@ -206,8 +201,8 @@ public class BlockBreakerGame extends ApplicationAdapter {
 
                 for (int i = 0; i < blocks.size(); i++) {
                     if (blocks.get(i).isDestroyed()) {
-                        puntaje++; blocks.remove(i); i--;
-                        if (nextThresholdIdx < extraBallAt.length && puntaje >= extraBallAt[nextThresholdIdx]) {
+                        gs.sumarPuntos(1); blocks.remove(i); i--;
+                        if (nextThresholdIdx < extraBallAt.length && gs.getPuntaje() >= extraBallAt[nextThresholdIdx]) {
                             spawnBall(true);    // genera una nueva pelota pegada a la paleta
                             nextThresholdIdx++;}
                     }
