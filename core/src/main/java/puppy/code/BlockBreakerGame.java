@@ -37,6 +37,26 @@ public class BlockBreakerGame extends ApplicationAdapter {
         private long nivelStartTime = 0; // momento en que cambió el nivel
         private final float NIVEL_MOSTRAR_DURACION = 2.5f; // segundos
         private GameState gs;
+        private ArrayList<PowerUp> powerUps = new ArrayList<>();
+        private float ballSpeedModifier = 1f;
+        private String powerUpMsg = "";
+        private float powerUpMsgAlpha = 0f;
+        private long powerUpMsgStart = 0;
+        private final float POWERUP_MOSTRAR_DURACION = 1.8f; // segundos
+
+        public void setBallSpeedModifier(float modifier) {
+            this.ballSpeedModifier = modifier;
+        }
+
+        public float getBallSpeedModifier() {
+            return ballSpeedModifier;
+        }
+        public void showPowerUpMessage(String msg) {
+            powerUpMsg = msg;
+            powerUpMsgAlpha = 1f;
+            powerUpMsgStart = System.currentTimeMillis();
+        }
+
     
 		@Override
 		public void create () {	
@@ -92,7 +112,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
                         }
                     }   
 		}
-                private void spawnBall(boolean attachToPaddle) {
+                protected void spawnBall(boolean attachToPaddle) {
                     int bx = Math.round(pad.getX() + pad.getWidth() / 2f - 5f);
                     int by = Math.round(pad.getY() + pad.getHeight() + 11f);
                     PingBall nb = new PingBall(bx, by, 10, 5, 7, attachToPaddle);
@@ -121,7 +141,10 @@ public class BlockBreakerGame extends ApplicationAdapter {
                     font.draw(batch, "Vidas : " + gs.getVidas(), uiViewport.getWorldWidth() - 210, 40);
                     font.setColor(1, 1, 0.6f, 1);
                     font.draw(batch, "Mejor: " + gs.getMejorPuntaje(), uiViewport.getWorldWidth()/2f - 70, 40);
-                    
+
+                    // -----------------------------
+                    //   TEXTO DEL NIVEL
+                    // -----------------------------
                     if (nivelAlpha > 0f) {
                         long elapsed = System.currentTimeMillis() - nivelStartTime;
                         if (elapsed > NIVEL_MOSTRAR_DURACION * 1000) {
@@ -132,17 +155,34 @@ public class BlockBreakerGame extends ApplicationAdapter {
                         font.setColor(1f, 1f, 1f, nivelAlpha * 0.4f);
                         String textoNivel = "Nivel " + gs.getNivel();
 
-                        // Posición centrada a ojo (puedo pasarte la centrada exacta si querís)
                         float x = uiViewport.getWorldWidth() / 2f - 100;
                         float y = uiViewport.getWorldHeight() / 2f + 20;
 
                         font.draw(batch, textoNivel, x, y);
-                    }                    
-                    
+                    }
+
+                    // -----------------------------
+                    //   TEXTO DE POWER-UP (AQUÍ!)
+                    // -----------------------------
+                    if (powerUpMsgAlpha > 0f) {
+
+                        long elapsed = System.currentTimeMillis() - powerUpMsgStart;
+
+                        if (elapsed > POWERUP_MOSTRAR_DURACION * 1000) {
+                            powerUpMsgAlpha -= Gdx.graphics.getDeltaTime() * 0.7f;
+                            if (powerUpMsgAlpha < 0f) powerUpMsgAlpha = 0f;
+                        }
+
+                        font.setColor(1f, 1f, 0f, powerUpMsgAlpha);
+                        float x = uiViewport.getWorldWidth() / 2f - 150;
+                        float y = uiViewport.getWorldHeight() - 90;
+
+                        font.draw(batch, powerUpMsg, x, y);
+                    }
+
+                    // FIN
                     batch.end();
-                    
-                    
-		}	
+                }	
 		
 		@Override
                 public void render () {
@@ -159,7 +199,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
                     } else {
                         float mult = 1f + gs.getNivel() * 0.03f;   // más suave que 0.05
                         if (mult > 1.4f) mult = 1.4f;      // tope
-                        b.update(mult);
+                        b.update(mult * ballSpeedModifier);
                     }
                     if (b.getY() < 0) fallen.add(b);
                 }
@@ -201,24 +241,70 @@ public class BlockBreakerGame extends ApplicationAdapter {
 
                 for (int i = 0; i < blocks.size(); i++) {
                     if (blocks.get(i).isDestroyed()) {
-                        gs.sumarPuntos(1); blocks.remove(i); i--;
-                        if (nextThresholdIdx < extraBallAt.length && gs.getPuntaje() >= extraBallAt[nextThresholdIdx]) {
-                            spawnBall(true);    // genera una nueva pelota pegada a la paleta
-                            nextThresholdIdx++;}
+
+                        gs.sumarPuntos(1);
+
+                        // --- DROP DE POWER-UP (40% de probabilidad) ---
+                        if (Math.random() < 0.4) {
+
+                            int px = (int) blocks.get(i).getX();
+                            int py = (int) blocks.get(i).getY();
+
+                            double r = Math.random();
+
+                            if (r < 0.25)
+                                powerUps.add(new PowerUpExpand(px, py));
+                            else if (r < 0.50)
+                                powerUps.add(new PowerUpSlow(px, py));
+                            else if (r < 0.75)
+                                powerUps.add(new PowerUpMultiBall(px, py));
+                            else
+                                powerUps.add(new PowerUpLife(px, py));
+                        }
+
+                        // --- eliminar bloque ---
+                        blocks.remove(i);
+                        i--;
+
+                        // --- extra ball por puntaje ---
+                        if (nextThresholdIdx < extraBallAt.length
+                                && gs.getPuntaje() >= extraBallAt[nextThresholdIdx]) {
+
+                            spawnBall(true);
+                            nextThresholdIdx++;
+                        }
                     }
                 }
 
                 for (PingBall b : balls){
                     b.checkCollision(pad);
                 }
+                ArrayList<PowerUp> collected = new ArrayList<>();
 
-                // DIBUJO DE BLOQUES (SpriteBatch)
+                for (PowerUp p : powerUps) {
+                    p.update(Gdx.graphics.getDeltaTime()); // baja hacia abajo
+
+                    // si toca la paleta → activar
+                    if (p.collidesWith(pad)) {
+                        p.applyEffect(gs, pad, this);
+                        collected.add(p);
+                    }
+
+                    // si se cae del mapa → borrar
+                    if (p.isOut()) {
+                        collected.add(p);
+                    }
+                }
+
+                powerUps.removeAll(collected);
+
+                
                 camera.update();
                 batch.setProjectionMatrix(camera.combined);
-                batch.enableBlending();                     // <- asegura alpha habilitado
+                batch.enableBlending();                     
                 batch.begin();
                 for (Block b : blocks) {
-                    // usa el color del bloque; si no existiera, fija uno
+                    
                     Color base = b.getColor() != null ? new Color(b.getColor()) : new Color(0.55f, 0.75f, 1f, 1f);
 
                     Texture tex = brickTextures.get(texW, texH, radius, base);
@@ -237,6 +323,9 @@ public class BlockBreakerGame extends ApplicationAdapter {
                 shape.begin(ShapeRenderer.ShapeType.Filled);
                 pad.draw(shape);
                 for (PingBall b : balls) b.draw(shape);
+                for (PowerUp p : powerUps) {
+                    p.draw(shape);
+                }
                 shape.end();
 
                 // HUD

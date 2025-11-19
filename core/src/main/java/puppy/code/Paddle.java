@@ -27,4 +27,24 @@ public class Paddle extends GameObject {
 
         shape.rect(x, y, width, height);
     }
+    public void setWidth(float w) {
+    this.width = w;
+}
+
+    public float getWidth() {
+        return width;
+    }
+
+    public float getX() {
+        return x;
+    }
+
+    public float getY() {
+        return y;
+    }
+
+    public float getHeight() {
+        return height;
+    }
+
 }
