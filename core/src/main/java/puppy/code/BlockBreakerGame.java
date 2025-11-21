@@ -43,6 +43,7 @@ public class BlockBreakerGame extends ApplicationAdapter {
         private float powerUpMsgAlpha = 0f;
         private long powerUpMsgStart = 0;
         private final float POWERUP_MOSTRAR_DURACION = 1.8f; // segundos
+        private BlockFactory factory;
 
         public void setBallSpeedModifier(float modifier) {
             this.ballSpeedModifier = modifier;
@@ -75,7 +76,10 @@ public class BlockBreakerGame extends ApplicationAdapter {
                 font = gen.generateFont(p);
                 gen.dispose();
                 gs.reset();
-                
+                if (gs.getNivel() <= 2)
+                    factory = new EasyLevelFactory();
+                else
+                    factory = new HardLevelFactory();
                 crearBloques(2 + gs.getNivel());
                 uiViewport = new ScreenViewport();
                 shape = new ShapeRenderer();
@@ -99,19 +103,18 @@ public class BlockBreakerGame extends ApplicationAdapter {
                         y -= blockHeight + 10;
 
                         for (int x = 5; x < Gdx.graphics.getWidth(); x += blockWidth + 10) {
+
                             Block bloque;
 
-                            // 🔹 Cada 3ª fila o cada 5° bloque será más duro (2 golpes)
-                            if ((fila + 1) % 3 == 0 || (x / (blockWidth + 10)) % 5 == 0) {
-                                bloque = new BlockHard(x, y, blockWidth, blockHeight);
-                            } else {
-                                bloque = new Block(x, y, blockWidth, blockHeight);
-                            }
+                            if ((fila + 1) % 3 == 0)
+                                bloque = factory.createHard(x, y);
+                            else
+                                bloque = factory.createNormal(x, y);
 
                             blocks.add(bloque);
                         }
-                    }   
-		}
+                    }
+                }
                 protected void spawnBall(boolean attachToPaddle) {
                     int bx = Math.round(pad.getX() + pad.getWidth() / 2f - 5f);
                     int by = Math.round(pad.getY() + pad.getHeight() + 11f);

@@ -15,21 +15,30 @@ public class Paddle extends GameObject {
     public void draw(ShapeRenderer shape){
         shape.setColor(Color.BLUE);
 
-        // trabajamos con los campos heredados: x, y, width, height
         float nuevoX = x;
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT))  nuevoX = x - 15;
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) nuevoX = x + 15;
 
-        // límites pantalla
-        if (nuevoX > 0 && nuevoX + width < Gdx.graphics.getWidth()) {
-            x = nuevoX;
+        // Movimiento
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT))
+            nuevoX = x - 15;
+        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT))
+            nuevoX = x + 15;
+
+        // Ajuste de límites (si se sale, lo empujamos dentro)
+        if (nuevoX < 0) {
+            nuevoX = 0;
         }
+        if (nuevoX + width > Gdx.graphics.getWidth()) {
+            nuevoX = Gdx.graphics.getWidth() - width;
+        }
+
+        x = nuevoX;
 
         shape.rect(x, y, width, height);
     }
+    
     public void setWidth(float w) {
-    this.width = w;
-}
+        this.width = Math.min(w, 400); // máximo ancho
+    }
 
     public float getWidth() {
         return width;
