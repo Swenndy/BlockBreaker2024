@@ -11,6 +11,9 @@ public class PingBall extends GameObject {
     private Color color = Color.WHITE;
     private boolean estaQuieto;
 
+    // NUEVO: estrategia de movimiento
+    private BallMovementStrategy movementStrategy = new NormalMovementStrategy();
+
     public PingBall(float x, float y, float size, float xSpeed, float ySpeed, boolean iniciaQuieto) {
         super(x, y, size * 2, size * 2);
         this.size = size;
@@ -24,16 +27,19 @@ public class PingBall extends GameObject {
     public void setXY(float nx, float ny) { this.x = nx; this.y = ny; }
     public float getY() { return y; }
 
+    // NUEVO: permitir cambiar la estrategia desde fuera (PowerUp o Game)
+    public void setMovementStrategy(BallMovementStrategy strategy) {
+        this.movementStrategy = strategy;
+    }
+
     @Override
     public void draw(ShapeRenderer shape) {
         shape.setColor(color);
         shape.circle(x, y, size);
     }
 
-    // update con multiplicador
-    public void update(float mult) {
-        if (estaQuieto) return;
-
+    // NUEVO: método interno que realmente mueve la bola
+    void actualizarPosicion(float mult) {
         x += xSpeed * mult;
         y += ySpeed * mult;
 
@@ -45,6 +51,19 @@ public class PingBall extends GameObject {
         }
     }
 
+    // NUEVO: pequeño cambio aleatorio de dirección (usado por CrazyMovementStrategy)
+    void ajustarDireccionAleatoria() {
+        // ejemplo simple: variación pequeña en la velocidad horizontal
+        float delta = (float)(Math.random() * 0.6f - 0.3f); // entre -0.3 y 0.3
+        xSpeed += delta;
+    }
+
+    // update con Strategy
+    public void update(float mult) {
+        if (estaQuieto) return;
+        movementStrategy.move(this, mult);
+    }
+
     // colisión con bloques
     public void checkCollision(Block block) {
         if (!block.isDestroyed() && collidesWith(block)) {
@@ -53,25 +72,19 @@ public class PingBall extends GameObject {
         }
     }
 
-    // colisión con paleta (mejorada)
+    // colisión con paleta (igual que antes)
     public void checkCollision(Paddle paddle) {
         if (!collidesWith(paddle)) return;
 
-        // punto medio de la paleta
         float paddleCenter = paddle.getX() + paddle.getWidth() / 2f;
-        // cuánto me desvié del centro (entre -1 y 1)
         float offset = (x - paddleCenter) / (paddle.getWidth() / 2f);
 
-        // límite por si acaso
         if (offset < -1f) offset = -1f;
         if (offset > 1f)  offset = 1f;
 
-        // velocidad horizontal en función del lugar de impacto
-        float newXSpeed = offset * 6f;  // mientras más grande, más se va de lado
-
-        // mantenemos una velocidad vertical mínima hacia arriba
+        float newXSpeed = offset * 6f;
         float newYSpeed = Math.abs(ySpeed);
-        if (newYSpeed < 4f) newYSpeed = 4f; // que no quede plana
+        if (newYSpeed < 4f) newYSpeed = 4f;
 
         this.xSpeed = newXSpeed;
         this.ySpeed = newYSpeed;
